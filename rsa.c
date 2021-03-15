@@ -104,11 +104,11 @@ int rsa_keyGen(size_t keyBits, RSA_KEY* K)
     mpz_set_ui(e, 2);
     
     //e and phin both have to be prime that satisfy e>1
-    NEWZ(result);
-    while(mpz_get_ui(result) < mpz_get_ui(phin))
+    NEWZ(count);
+    while(mpz_get_ui(count) < mpz_get_ui(phin))
     {
-        mpz_gcd(result, e, phin);
-        if(mpz_get_ui(result) == 1)
+        mpz_gcd(count, e, phin);
+        if(mpz_get_ui(count) == 1)
             break;
         else
             mpz_add_ui(e, e, 1);
