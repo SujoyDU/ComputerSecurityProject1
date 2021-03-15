@@ -125,7 +125,7 @@ size_t rsa_encrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 {
 	/* TODO: write this.  Use BYTES2Z to get integers, and then
 	 * Z2BYTES to write the output buffer. */
-    NEWZ(etext);
+        NEWZ(etext);
 	NEWZ(x);
 	BYTES2Z(x, inBuf, len);
 	mpz_powm(etext, x, (*K).e, (*K).n);
@@ -136,7 +136,7 @@ size_t rsa_decrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 		RSA_KEY* K)
 {
 	/* TODO: write this.  See remarks above. */
-    NEWZ(dtext);
+        NEWZ(dtext);
 	NEWZ(x);
 	BYTES2Z(x, inBuf, len);
 	mpz_powm(dtext, x, (*K).d, (*K).n);
