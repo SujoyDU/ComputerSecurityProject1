@@ -61,7 +61,7 @@ int rsa_keyGen(size_t keyBits, RSA_KEY* K)
     
     //We need to generate 2 random prime numbers for p and q as well as find values for n, e, and d.
     
-    //generating random numbers of 16 bytes and converting to integer
+    //generating random numbers of 16 bytes or 128 bits and converting to integer
     keyBits = 16;
     unsigned char* buf;
     NEWZ(rn);
