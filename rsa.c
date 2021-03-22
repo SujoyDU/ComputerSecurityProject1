@@ -70,7 +70,7 @@ int rsa_keyGen(size_t keyBits, RSA_KEY* K)
     randBytes(buf, keyBits);
     BYTES2Z(rn, buf, keyBits);
  
-    for(size_t i = 0; i<65536; i++)
+    for(size_t i = 0; i<128; i++)
         {
             mpz_nextprime(rn, rn);
             mpz_set((*K).p, rn);
@@ -81,7 +81,7 @@ int rsa_keyGen(size_t keyBits, RSA_KEY* K)
     randBytes(buf, keyBits);
     BYTES2Z(rn2, buf, keyBits);
         
-    for(size_t t = 0; t<65536; t++)
+    for(size_t t = 0; t<128; t++)
         {
             mpz_nextprime(rn2, rn2);
             mpz_set((*K).q, rn2);
