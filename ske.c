@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <openssl/err.h> /*for ERR_print_errors_fp() function */
 #ifdef LINUX
 #define MMAP_SEQ MAP_PRIVATE|MAP_POPULATE
 #else
