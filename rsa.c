@@ -133,7 +133,7 @@ size_t rsa_encrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 	BYTES2Z(x, inBuf, len);
 	mpz_powm(etext, x, (*K).e, (*K).n);
 	Z2BYTES(outBuf, len, etext);
-	return len; /* TODO: return should be # bytes written */
+	return mpz_size(etext)*sizeof(mp_limb_t); /* TODO: return should be # bytes written */
 }
 size_t rsa_decrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 		RSA_KEY* K)
@@ -144,7 +144,7 @@ size_t rsa_decrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 	BYTES2Z(x, inBuf, len);
 	mpz_powm(dtext, x, (*K).d, (*K).n);
 	Z2BYTES(outBuf, len, dtext);
-	return len;
+	return mpz_size(dtext)*sizeof(mp_limb_t);
 }
 
 size_t rsa_numBytesN(RSA_KEY* K)
