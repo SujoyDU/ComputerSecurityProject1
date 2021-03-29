@@ -12,4 +12,4 @@ Yes, I am going to adjust the Makefile at some point..
 
 `randomprime.h` defines 2 functions -- one gets you a random prime number specified bit length; the other finds a random coprime, used for finding `e` in RSA key generation.
 
-![Zoidberg](/.bad-code.jpg)
+![Zoidberg](bad-code.jpg)
