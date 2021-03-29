@@ -34,9 +34,9 @@ int main() {
 	RSA_KEY K;
 	rsa_keyGen(1024,&K);
 	size_t i,j,ctLen,mLen = rsa_numBytesN(&K);
-	unsigned char* pt = malloc(mLen);
-	unsigned char* ct = malloc(mLen);
-	unsigned char* dt = malloc(mLen);
+	auto pt = reinterpret_cast<unsigned char*>(malloc(mLen));
+	auto ct = reinterpret_cast<unsigned char*>(malloc(mLen));
+	auto dt = reinterpret_cast<unsigned char*>(malloc(mLen));
 	for (i = 0; i < 32; i++) {
 		pt[mLen-1] = 0; /* avoid reduction mod n. */
 		randBytes(pt,mLen-1);

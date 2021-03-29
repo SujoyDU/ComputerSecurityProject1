@@ -1,0 +1,6 @@
+*.out
+*.o
+*.html
+*.pdf
+.vscode
+.DS_Store
