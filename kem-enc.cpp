@@ -1,6 +1,7 @@
 /* kem-enc.c
  * simple encryption utility providing CCA2 security.
  * based on the KEM/DEM hybrid model. */
+#include <algorithm>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,17 +53,29 @@ enum modes {
 
 #define HASHLEN 32 /* for sha256 */
 
-int kem_encrypt(const char* fnOut, const char* fnIn, RSA_KEY* K)
-{
+int kem_encrypt(const char* fnOut, const char* fnIn, RSA_KEY* K){
+	
 	/* TODO: encapsulate random symmetric key (SK) using RSA and SHA256;
 	 * encrypt fnIn with SK; concatenate encapsulation and cihpertext;
 	 * write to fnOut. */
+	SKE_KEY SK;
+	ske_keyGen(&SK, nullptr, 0);
+
+	// RSA(X)
+	rsa_encrypt(fnOut, &SK, sizeof(SK), K);
+	
+	// H(X)
+	SHA256(&SK, sizeof(SK), fnOut + rsa_numBytesN(&K));
+
+	// SKE ciphertext
+	ske_encrypt(fnOut + rsa_numBytesN(&K) + HASHLEN, fnOut)
+
 	return 0;
 }
 
 /* NOTE: make sure you check the decapsulation is valid before continuing */
-int kem_decrypt(const char* fnOut, const char* fnIn, RSA_KEY* K)
-{
+int kem_decrypt(const char* fnOut, const char* fnIn, RSA_KEY* K){
+
 	/* TODO: write this. */
 	/* step 1: recover the symmetric key */
 	/* step 2: check decapsulation */

@@ -105,107 +105,108 @@ size_t ske_encrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 size_t ske_encrypt_file(const char* fnout, const char* fnin,
 		SKE_KEY* K, unsigned char* IV, size_t offset_out){
 
-	// Open files..
+	// Open files.
 	auto fdin = open(fnin, O_RDONLY);
 	auto fdout = open(fnout, O_CREAT | O_RDWR, S_IRWXU);
 	if(fdin < 0 or fdout < 0) {
         std::cerr << "Failed to open file" << std::endl;
-		return 0;
+		return -1;
     }
+	// Find ciphertext and plaintext length.
+	auto in_size = lseek(fdin, 0, SEEK_END);
+	auto out_size = ske_getOutputLen(in_size);
+	ftruncate(fdout, out_size); // allocates memory in file.
 
-	auto input_size = lseek(fdin, 0, SEEK_END);
-	auto chunk = reinterpret_cast<unsigned char*>(mmap(nullptr, input_size,
+	// Map files to memory.
+	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, in_size,
 											   		  PROT_READ, MAP_FILE | MAP_SHARED, 
 											    	  fdin, 0));
 
-	std::cout<<input_size<<std::endl;
-	if(chunk == MAP_FAILED){
+	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, out_size,
+											   		  PROT_WRITE, MAP_FILE | MAP_SHARED, 
+											    	  fdout, 0));
+
+	if(mmap_in == MAP_FAILED or mmap_out == MAP_FAILED){
 		std::cerr << "mmap failed" << std::endl;
-		return 0;
+		return -1;
 	}
-	const auto encrypted_len = ske_getOutputLen(input_size)-1; //+ 1;
-	auto ciphertext = new unsigned char[encrypted_len];
-	std::array<unsigned char, 16> iv = {};
-
-	if(IV == nullptr){
-		randBytes(iv.data(), iv.size());
-	}
-	else{
-		std::copy_n(IV, iv.size(), iv.begin());
-	}
+	// Encrypt.
+	ske_encrypt(mmap_out, mmap_in, in_size, K, IV);
 	
-	ske_encrypt(ciphertext, chunk, input_size, K, iv.data());
-
-	lseek(fdout, offset_out, SEEK_SET);
-	write(fdout, ciphertext, encrypted_len);
-	
-	munmap(chunk, input_size);
+	// Cleanup.
+	munmap(mmap_in, in_size);
+	munmap(mmap_out, out_size);
 	close(fdin);
 	close(fdout);
 
-	delete[] ciphertext;
 	return 0;
 }
 size_t ske_decrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 		SKE_KEY* K){
+	/* TODO: write this.  Make sure you check the mac before decypting!
+	 * Oh, and also, return -1 if the ciphertext is found invalid.
+	 * Otherwise, return the number of bytes written.  See aes-example.c
+	 * for how to do basic decryption. */
 
+	// Get HMAC
 	std::array<unsigned char, HM_LEN> hmac = {};
-
 	HMAC(EVP_sha256(), K->hmacKey, HM_LEN, inBuf, len-HM_LEN, hmac.data(), nullptr);
-
+	
+	// Verify HMAC
 	if(not std::equal(hmac.begin(), hmac.end(), inBuf + len - HM_LEN)){
 		std::cerr<<"ske_decrypt hmac signiture check failed"<<std::endl;
 		return -1;
 	}
 
+	// Decrypt.
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 	if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), 0, K->aesKey, inBuf)) {
 		ERR_print_errors_fp(stderr);
 	}
-	
 	int n_written = 0;
 	if(1 != EVP_DecryptUpdate(ctx, outBuf, &n_written, inBuf + 16, len - HM_LEN - 16)) {
 		ERR_print_errors_fp(stderr);
 	}
 
 	return n_written;
-	/* TODO: write this.  Make sure you check the mac before decypting!
-	 * Oh, and also, return -1 if the ciphertext is found invalid.
-	 * Otherwise, return the number of bytes written.  See aes-example.c
-	 * for how to do basic decryption. */
 }
 size_t ske_decrypt_file(const char* fnout, const char* fnin,
 		SKE_KEY* K, size_t offset_in){
 	
+	// Open files.
 	auto fdin = open(fnin, O_RDONLY);
 	auto fdout = open(fnout, O_CREAT | O_RDWR, S_IRWXU);
 	if(fdin < 0 or fdout < 0) {
         std::cerr << "Failed to open file" << std::endl;
-		return 0;
+		return 1;
     }
+	// Find ciphertext and plaintext length.
+	auto in_size = lseek(fdin, offset_in, SEEK_END);
+	auto out_size = in_size - HM_LEN - AES_BLOCK_SIZE;
+	ftruncate(fdout, out_size); // make sure outfile has enough lenght.
+	
+	// Map files to memory.
+	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, in_size,
+											   			 PROT_READ, MAP_FILE | MAP_SHARED, 
+											    	  	 fdin, 0));
 
-	auto input_size = lseek(fdin, 0, SEEK_END);
-	auto chunk = reinterpret_cast<unsigned char*>(mmap(nullptr, input_size,
-											   		  PROT_READ, MAP_FILE | MAP_SHARED, 
-											    	  fdin, 0));
-	if(chunk == MAP_FAILED){
+	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, out_size,
+											   		  	  PROT_WRITE, MAP_FILE | MAP_SHARED, 
+											    	  	  fdout, 0));
+	if(mmap_in == MAP_FAILED or mmap_out == MAP_FAILED){
 		std::cerr << "mmap failed" << std::endl;
-		return 0;
+		return -1;
 	}
-	const auto decrypted_len = input_size - 16 - HM_LEN - offset_in;
-	auto plaintext = new unsigned char[decrypted_len];
 
-	ske_decrypt(plaintext, chunk, input_size, K);
+	// Decrypt.
+	ske_decrypt(mmap_out, mmap_in, in_size, K);
 
-	lseek(fdout, 0, SEEK_SET);
-	write(fdout, plaintext, decrypted_len);
-
-	munmap(chunk, input_size);
+	// Cleanup.
+	munmap(mmap_in, in_size);
+	munmap(mmap_out, out_size);
 	close(fdin);
 	close(fdout);
 
-	delete[] plaintext;
-
-	/* TODO: write this. */
 	return 0;
 }
+// woop woop woop
