@@ -20,7 +20,7 @@ int soundCheck(char* message, SKE_KEY* K, unsigned char* IV, unsigned char errMa
 	size_t len = strlen(message) + 1; /* +1 to include null char */
 	size_t ctLen = ske_getOutputLen(len);
 	int rcode = 1;
-	unsigned char* ct = malloc(ctLen);
+	auto ct = reinterpret_cast<unsigned char*>(malloc(ctLen));
 	ske_encrypt(ct,(unsigned char*)message,len,K,IV);
 	#if VDEBUG
 	size_t i;
@@ -30,7 +30,7 @@ int soundCheck(char* message, SKE_KEY* K, unsigned char* IV, unsigned char errMa
 	fprintf(stderr, "\n");
 	#endif
 	/* now try to decrypt it. */
-	char* pt = malloc(len);
+	auto pt = reinterpret_cast<char*>(malloc(len));
 	/* tweak ct and see what happens: */
 	ct[rand() % ctLen] ^= errMask;
 	size_t r = ske_decrypt((unsigned char*)pt,ct,ctLen,K);
