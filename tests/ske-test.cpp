@@ -88,8 +88,8 @@ int main(int argc, char *argv[])
 	ske_keyGen(&K,0,0);
 
 	if (argc == 4) {
-		ske_encrypt_file(argv[2],argv[1],&K,IV,0);
-		ske_decrypt_file(argv[3],argv[2],&K,0);
+		ske_encrypt_file(argv[2],argv[1],&K,IV,10);
+		ske_decrypt_file(argv[3],argv[2],&K,10);
 		return 0;
 	}
 

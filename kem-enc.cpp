@@ -1,7 +1,10 @@
 /* kem-enc.c
  * simple encryption utility providing CCA2 security.
  * based on the KEM/DEM hybrid model. */
+//  gcc kem-enc.cpp rsa.cpp ske.cpp prf.cpp -o kem-enc -O2 -Wall -std=c++14 -lstdc++ -lgmp -lgmpxx -lcrypto -lssl -I/usr/local/Cellar/openssl@1.1/1.1.1k/include -L/usr/local/Cellar/openssl@1.1/1.1.1k/lib
+#include <array>
 #include <algorithm>
+#include <iostream>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +12,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <openssl/sha.h>
+#include <sys/mman.h>
 
 #include "ske.h"
 #include "rsa.h"
@@ -30,7 +34,7 @@ static const char* usage =
 "   --help             show this message and exit.\n";
 
 #define FNLEN 255
-
+#define HM_LEN 32
 enum modes {
 	ENC,
 	DEC,
@@ -58,28 +62,110 @@ int kem_encrypt(const char* fnOut, const char* fnIn, RSA_KEY* K){
 	/* TODO: encapsulate random symmetric key (SK) using RSA and SHA256;
 	 * encrypt fnIn with SK; concatenate encapsulation and cihpertext;
 	 * write to fnOut. */
+	// Open files.
+	auto fdin = open(fnIn, O_RDONLY);
+	auto fdout = open(fnOut, O_CREAT | O_RDWR, S_IRWXU);
+	if(fdin < 0 or fdout < 0) {
+        std::cerr << "Failed to open file" << std::endl;
+		return -1;
+    }
+	// Find ciphertext and plaintext length.
+	const auto fin_size = lseek(fdin, 0, SEEK_END);
+	const auto fout_size = ske_getOutputLen(fin_size) + rsa_numBytesN(K) + HASHLEN;
+	ftruncate(fdout, fout_size); // allocates memory in file.
+
+	// Map files to memory.
+	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, fin_size,
+											   		  PROT_READ, MAP_FILE | MAP_SHARED, 
+											    	  fdin, 0));
+
+	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, fout_size,
+											   		  PROT_WRITE, MAP_FILE | MAP_SHARED, 
+											    	  fdout, 0));
+	
+	if(mmap_in == MAP_FAILED or mmap_out == MAP_FAILED){
+		std::cerr << "mmap failed" << std::endl;
+		return -1;
+	}
+
+	// Generate symmetric key
 	SKE_KEY SK;
 	ske_keyGen(&SK, nullptr, 0);
 
 	// RSA(X)
-	rsa_encrypt(fnOut, &SK, sizeof(SK), K);
+	rsa_encrypt(mmap_out, reinterpret_cast<unsigned char*>(&SK), sizeof(SK), K);
 	
 	// H(X)
-	SHA256(&SK, sizeof(SK), fnOut + rsa_numBytesN(&K));
+	SHA256(reinterpret_cast<unsigned char*>(&SK), sizeof(SK), mmap_out + rsa_numBytesN(K));
 
 	// SKE ciphertext
-	ske_encrypt(fnOut + rsa_numBytesN(&K) + HASHLEN, fnOut)
+	ske_encrypt(mmap_out + rsa_numBytesN(K) + HASHLEN, mmap_in, fin_size, &SK, nullptr);
+	
+	// Cleanup.
+	munmap(mmap_in, fin_size);
+	munmap(mmap_out, fout_size);
+	close(fdin);
+	close(fdout);
 
 	return 0;
 }
 
 /* NOTE: make sure you check the decapsulation is valid before continuing */
 int kem_decrypt(const char* fnOut, const char* fnIn, RSA_KEY* K){
-
 	/* TODO: write this. */
 	/* step 1: recover the symmetric key */
 	/* step 2: check decapsulation */
 	/* step 3: derive key from ephemKey and decrypt data. */
+	// Open files.
+	auto fdin = open(fnIn, O_RDONLY);
+	auto fdout = open(fnOut, O_CREAT | O_RDWR, S_IRWXU);
+	if(fdin < 0 or fdout < 0) {
+        std::cerr << "Failed to open file" << std::endl;
+		close(fdin);
+		close(fdout);
+		return -1;
+    }
+
+	// Find ciphertext length.
+	const auto fin_size = lseek(fdin, 0, SEEK_END);
+	// Map ciphertext to memory.
+	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, fin_size,
+											   		  PROT_READ, MAP_FILE | MAP_SHARED, 
+											    	  fdin, 0));
+	if(mmap_in == MAP_FAILED){
+		std::cerr << "mmap_in failed" << std::endl;
+		return -1;
+	}
+
+	// Retreive symmetric key.
+	SKE_KEY SK;
+	rsa_decrypt(reinterpret_cast<unsigned char*>(&SK), mmap_in, rsa_numBytesN(K), K);
+
+	// Check hash
+	std::array<unsigned char, HASHLEN> hash = {};
+	SHA256(reinterpret_cast<unsigned char*>(&SK), sizeof(SK), hash.data());
+	std::cout<<rsa_numBytesN(K)<<std::endl;
+	// Verify decapsulation
+	if(not std::equal(hash.begin(), hash.end(), mmap_in + rsa_numBytesN(K))){
+		std::cerr<<"kem_decrypt decapsulation check failed"<<std::endl;
+		return -1;
+	}
+	const auto fout_size = fin_size - HASHLEN - rsa_numBytesN(K) - AES_BLOCK_SIZE - HM_LEN;
+	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, fout_size,
+													PROT_WRITE, MAP_FILE | MAP_SHARED, 
+													fdout, 0));
+	if(mmap_out == MAP_FAILED){
+		std::cerr << "mmap_out failed" << std::endl;
+		return -1;
+	}
+	ftruncate(fdout, fout_size);
+	
+	ske_decrypt(mmap_out, mmap_in + rsa_numBytesN(K) + HASHLEN, fin_size - rsa_numBytesN(K) - HASHLEN, &SK);
+	// Cleanup.
+	munmap(mmap_in, fin_size);
+	munmap(mmap_out, fout_size);
+	close(fdin);
+	close(fdout);
 	return 0;
 }
 
@@ -151,11 +237,96 @@ int main(int argc, char *argv[]) {
 	 * like private keys when you're done with them (see the
 	 * rsa_shredKey function). */
 	switch (mode) {
-		case ENC:
-		case DEC:
-		case GEN:
+		case ENC:{
+
+			// Open file containing key.
+			auto pfile_key = fopen(fnKey, "r");
+			if(pfile_key == nullptr){
+				std::cerr<<"Failed to open fnKey."<<std::endl;
+				return 1;
+			}
+			
+			// Retreive rsa key.
+			RSA_KEY K;
+			rsa_readPublic(pfile_key, &K);
+			const auto ret = kem_encrypt(fnOut, fnIn, &K);
+			if(ret){
+				std::cerr<<"kem_encrypt failed."<<std::endl;
+				return 1;
+			}
+
+			// Cleanup
+			fclose(pfile_key);
+			
+			// did you say key? what key?
+			rsa_shredKey(&K);
+			break;
+		}
+		case DEC:{
+
+			// Open file containing key.
+			auto pfile_key = fopen(fnKey, "r");
+			if(pfile_key == nullptr){
+				std::cerr<<"Failed to open fnKey."<<std::endl;
+				return 1;
+			}
+
+			// Retreive rsa key.
+			RSA_KEY K;
+			rsa_readPrivate(pfile_key, &K);
+
+			std::cout<<"fnIn: "<<fnIn<<std::endl;
+			std::cout<<"fnOut: "<<fnOut<<std::endl;
+			const auto ret = kem_decrypt(fnOut, fnIn, &K);
+			if(ret){
+				std::cerr<<"kem_decrypt failed."<<std::endl;
+				return 1;
+			}
+
+			// Cleanup
+			fclose(pfile_key);
+
+			// did you say key? what key?
+			rsa_shredKey(&K);
+			break;
+		}
+		case GEN:{
+
+			// Create key files.
+			auto pfile_public = fopen(fnOut, "w");
+
+			for(auto i=0; i<FNLEN; ++i){
+
+				if(fnOut[i] == '\0'){
+					strcpy(fnOut + i, ".pub");
+					i = FNLEN;
+				}
+			}
+			auto pfile_private = fopen(fnOut, "w");
+			if(pfile_public == nullptr or pfile_private == nullptr){
+				std::cerr<<"Failed to open files to write."<<std::endl;
+				fclose(pfile_public);
+				fclose(pfile_private);
+			}
+
+			// Generate rsa key.
+			RSA_KEY K;
+			rsa_keyGen(nBits, &K);
+
+			// Save key to files.
+			rsa_writePublic(pfile_public, &K);
+			rsa_writePrivate(pfile_private, &K);
+
+			// Cleanup
+			fclose(pfile_public);
+			fclose(pfile_private);
+
+			// did you say key? what key?
+			rsa_shredKey(&K);
+			break;
+		}
 		default:
-			return 1;
+		 	return 1;
 	}
 
 	return 0;

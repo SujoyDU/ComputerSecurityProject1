@@ -78,8 +78,8 @@ unsigned int randomprime(mpz_t result, unsigned int bit_len, unsigned int resp){
 
         if(mpz_probab_prime_p(mpz_int, resp)){
 
-            std::cout<<"Random prime generated:"<<std::endl;
-            std::cout<<mpz_get_str(nullptr, 10, mpz_int)<<std::endl;
+            // std::cout<<"Random prime generated:"<<std::endl;
+            // std::cout<<mpz_get_str(nullptr, 10, mpz_int)<<std::endl;
 
             mpz_set(result, mpz_int);
             return 1;

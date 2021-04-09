@@ -75,7 +75,6 @@ size_t ske_encrypt(unsigned char* outBuf, unsigned char* inBuf, size_t len,
 	if(IV == nullptr){
 		// If IV is not given get a random IV
 		randBytes(iv.data(), iv.size());
-		std::cout<<"generating iv"<<std::endl;
 	}
 	else{
 		// Get the given IV
@@ -113,16 +112,16 @@ size_t ske_encrypt_file(const char* fnout, const char* fnin,
 		return -1;
     }
 	// Find ciphertext and plaintext length.
-	auto in_size = lseek(fdin, 0, SEEK_END);
-	auto out_size = ske_getOutputLen(in_size);
-	ftruncate(fdout, out_size); // allocates memory in file.
+	const auto fin_size = lseek(fdin, 0, SEEK_END);
+	const auto fout_size = ske_getOutputLen(fin_size) + offset_out;
+	ftruncate(fdout, fout_size); // allocates memory in file.
 
 	// Map files to memory.
-	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, in_size,
+	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, fin_size,
 											   		  PROT_READ, MAP_FILE | MAP_SHARED, 
 											    	  fdin, 0));
 
-	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, out_size,
+	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, fout_size,
 											   		  PROT_WRITE, MAP_FILE | MAP_SHARED, 
 											    	  fdout, 0));
 
@@ -131,11 +130,11 @@ size_t ske_encrypt_file(const char* fnout, const char* fnin,
 		return -1;
 	}
 	// Encrypt.
-	ske_encrypt(mmap_out, mmap_in, in_size, K, IV);
+	ske_encrypt(mmap_out + offset_out, mmap_in, fin_size, K, IV);
 	
 	// Cleanup.
-	munmap(mmap_in, in_size);
-	munmap(mmap_out, out_size);
+	munmap(mmap_in, fin_size);
+	munmap(mmap_out, fout_size);
 	close(fdin);
 	close(fdout);
 
@@ -181,16 +180,17 @@ size_t ske_decrypt_file(const char* fnout, const char* fnin,
 		return 1;
     }
 	// Find ciphertext and plaintext length.
-	auto in_size = lseek(fdin, offset_in, SEEK_END);
-	auto out_size = in_size - HM_LEN - AES_BLOCK_SIZE;
-	ftruncate(fdout, out_size); // make sure outfile has enough lenght.
+	const auto fin_size = lseek(fdin, 0, SEEK_END);
+	const auto fout_size = fin_size - offset_in - HM_LEN - AES_BLOCK_SIZE;
+
+	ftruncate(fdout, fout_size); // make sure outfile has enough lenght.
 	
 	// Map files to memory.
-	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, in_size,
+	auto mmap_in = reinterpret_cast<unsigned char*>(mmap(nullptr, fin_size,
 											   			 PROT_READ, MAP_FILE | MAP_SHARED, 
 											    	  	 fdin, 0));
 
-	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, out_size,
+	auto mmap_out = reinterpret_cast<unsigned char*>(mmap(nullptr, fout_size,
 											   		  	  PROT_WRITE, MAP_FILE | MAP_SHARED, 
 											    	  	  fdout, 0));
 	if(mmap_in == MAP_FAILED or mmap_out == MAP_FAILED){
@@ -199,11 +199,11 @@ size_t ske_decrypt_file(const char* fnout, const char* fnin,
 	}
 
 	// Decrypt.
-	ske_decrypt(mmap_out, mmap_in, in_size, K);
+	ske_decrypt(mmap_out, mmap_in + offset_in, fin_size - offset_in, K);
 
 	// Cleanup.
-	munmap(mmap_in, in_size);
-	munmap(mmap_out, out_size);
+	munmap(mmap_in, fin_size);
+	munmap(mmap_out, fout_size);
 	close(fdin);
 	close(fdout);
 
