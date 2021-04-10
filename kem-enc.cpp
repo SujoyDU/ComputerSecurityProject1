@@ -2,9 +2,9 @@
  * simple encryption utility providing CCA2 security.
  * based on the KEM/DEM hybrid model. */
 //  gcc kem-enc.cpp rsa.cpp ske.cpp prf.cpp -o kem-enc -O2 -Wall -std=c++14 -lstdc++ -lgmp -lgmpxx -lcrypto -lssl -I/usr/local/Cellar/openssl@1.1/1.1.1k/include -L/usr/local/Cellar/openssl@1.1/1.1.1k/lib
-#include <array>
-#include <algorithm>
+
 #include <iostream>
+#include <array>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,13 +138,13 @@ int kem_decrypt(const char* fnOut, const char* fnIn, RSA_KEY* K){
 	}
 
 	// Retreive symmetric key.
-	SKE_KEY SK;
+	SKE_KEY SK = {};
 	rsa_decrypt(reinterpret_cast<unsigned char*>(&SK), mmap_in, rsa_numBytesN(K), K);
-
+	
 	// Check hash
 	std::array<unsigned char, HASHLEN> hash = {};
 	SHA256(reinterpret_cast<unsigned char*>(&SK), sizeof(SK), hash.data());
-	std::cout<<rsa_numBytesN(K)<<std::endl;
+
 	// Verify decapsulation
 	if(not std::equal(hash.begin(), hash.end(), mmap_in + rsa_numBytesN(K))){
 		std::cerr<<"kem_decrypt decapsulation check failed"<<std::endl;
@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
 	 * rsa_shredKey function). */
 	switch (mode) {
 		case ENC:{
-
+			
 			// Open file containing key.
 			auto pfile_key = fopen(fnKey, "r");
 			if(pfile_key == nullptr){
@@ -249,6 +249,7 @@ int main(int argc, char *argv[]) {
 			// Retreive rsa key.
 			RSA_KEY K;
 			rsa_readPublic(pfile_key, &K);
+
 			const auto ret = kem_encrypt(fnOut, fnIn, &K);
 			if(ret){
 				std::cerr<<"kem_encrypt failed."<<std::endl;
@@ -275,8 +276,6 @@ int main(int argc, char *argv[]) {
 			RSA_KEY K;
 			rsa_readPrivate(pfile_key, &K);
 
-			std::cout<<"fnIn: "<<fnIn<<std::endl;
-			std::cout<<"fnOut: "<<fnOut<<std::endl;
 			const auto ret = kem_decrypt(fnOut, fnIn, &K);
 			if(ret){
 				std::cerr<<"kem_decrypt failed."<<std::endl;
@@ -293,7 +292,7 @@ int main(int argc, char *argv[]) {
 		case GEN:{
 
 			// Create key files.
-			auto pfile_public = fopen(fnOut, "w");
+			auto pfile_private = fopen(fnOut, "w");
 
 			for(auto i=0; i<FNLEN; ++i){
 
@@ -302,7 +301,7 @@ int main(int argc, char *argv[]) {
 					i = FNLEN;
 				}
 			}
-			auto pfile_private = fopen(fnOut, "w");
+			auto pfile_public = fopen(fnOut, "w");
 			if(pfile_public == nullptr or pfile_private == nullptr){
 				std::cerr<<"Failed to open files to write."<<std::endl;
 				fclose(pfile_public);
