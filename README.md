@@ -1,15 +1,30 @@
 # Welcome to Stan's branch
 
-So far I got RSA working with my own random number generator. Don't judge for the mix of c and c++..  
+### Build
+The following steps are performed from the repository root directory.
 
-RSA test builds with
-```shell
-# Beware of your paths
-gcc rsa-test.cpp ../rsa.cpp ../prf.cpp -O2 -Wall -std=c++14 -lstdc++ -lgmp -lgmpxx -lcrypto -lssl -I/usr/local/Cellar/openssl@1.1/1.1.1j/include -L/usr/local/Cellar/openssl@1.1/1.1.1j/lib
+1. Adjust Makefile's `CPPFLAGS` and `LDFLAGS` in case includes and libs of openssl and gmp are not in 
+global lookup directories (such as `/usr/local/include`).
+```makefile
+CPPFLAGS := $(CPPFLAGS) $(COMMON) -I/usr/local/Cellar/openssl@1.1/1.1.1k/include
+LDFLAGS  := -L/usr/local/Cellar/openssl@1.1/1.1.1k/lib
 ```
 
-Yes, I am going to adjust the Makefile at some point..
+2. Run make.
+```shell
+make
+```
 
-`randomprime.h` defines 2 functions -- one gets you a random prime number specified bit length; the other finds a random coprime, used for finding `e` in RSA key generation.
+### Test
+1. Run all tests.
+```shell
+./test.sh
+```
 
+2. Inspect output.
+```shell
+cat output
+```
+
+### Woop Woop Woop
 ![Zoidberg](bad-code.jpg)
