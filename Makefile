@@ -2,15 +2,16 @@ SOURCES := $(wildcard *.c)
 OBJECTS := $(SOURCES:.c=.o)
 HEADERS := $(wildcard *.h)
 TARGETS := kem-enc
-TSOURCE := $(wildcard tests/*.c)
-TESTS   := $(TSOURCE:.c=)
+TSOURCE := $(wildcard tests/*.cpp)
+TESTS   := $(TSOURCE:.cpp=)
 
-COMMON   := -O2 -Wall
-CFLAGS   := $(CFLAGS) $(COMMON)
-CC       := gcc
-LDADD    := -lcrypto -lssl -lgmp
+COMMON   := -O2 -Wall -std=c++14 
+CFLAGS   := $(CFLAGS) $(COMMON) 
+CPPFLAGS := $(CPPFLAGS) $(COMMON) -I/usr/local/Cellar/openssl@1.1/1.1.1k/include
+CC       := gcc 
+LDADD    := -lstdc++ -lgmp -lgmpxx -lcrypto -lssl
 LD       := $(CC)
-LDFLAGS  := # -L/usr/local/lib/
+LDFLAGS  := -L/usr/local/Cellar/openssl@1.1/1.1.1k/lib
 DEFS     :=
 ifeq ($(shell uname),Linux)
 DEFS += -DLINUX
@@ -30,8 +31,8 @@ debug : $(TARGETS) $(TESTS)
 .PHONY : debug
 # }}}
 
-$(OBJECTS) : %.o : %.c $(HEADERS)
-	$(CC) $(CFLAGS) -c $< -o $@
+$(OBJECTS) : %.o : %.cpp $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@ 
 
 $(TARGETS) : $(IMPL) prf.o
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDADD)
@@ -44,4 +45,4 @@ $(TESTS) : % : %.o $(filter-out kem-enc.o,$(IMPL)) prf.o
 
 .PHONY : clean
 clean :
-	rm -f $(OBJECTS) $(TARGETS) $(TESTS) $(TSOURCE:.c=.o)
+	rm -f $(OBJECTS) $(TARGETS) $(TESTS) $(TSOURCE:.cpp=.o)

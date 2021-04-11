@@ -4,8 +4,8 @@
 
 # first the basic rsa and ske tests:
 
-./tests/rsa-test &> output
-./tests/ske-test &>> output
+./tests/rsa-test > output 2>&1
+./tests/ske-test >> output 2>&1
 
 # set up some test files:
 mkdir -p ./tests/data
@@ -19,5 +19,5 @@ done
 rm -f /tmp/testkey*
 ./kem-enc -b 2048 -g /tmp/testkey
 
-./kem-test.sh /tmp/testkey >> output
+./kem-test.sh /tmp/testkey >> output 2>&1
 

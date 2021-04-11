@@ -24,7 +24,7 @@ int setSeed(unsigned char* entropy, size_t len)
 	if (!entropy) {
 		callFree = 1;
 		len = 32;
-		entropy = malloc(len);
+		entropy = reinterpret_cast<unsigned char*>(malloc(len));
 		FILE* frand = fopen("/dev/urandom", "rb");
 		fread(entropy,1,len,frand);
 		fclose(frand);
